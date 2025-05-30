@@ -18,10 +18,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch } from "react-redux";
 // import { useSelector } from 'react-redux';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import Alert from "../../components/Alert";
 import { Colors } from "../../constants/Colors";
-import { auth } from "../../firebase";
+import { auth, db } from "../../firebase";
 import { loginFailure, loginStart, loginSuccess } from "../../store/features/auth/authSlice";
 import { saveUID } from "../../util/aysnStore";
 
@@ -86,6 +87,7 @@ export default function SignUp() {
           displayName: username,
         });
 
+  
         dispatch(
           loginSuccess({
             email: user.email,
@@ -94,12 +96,21 @@ export default function SignUp() {
             emailVerified: user.emailVerified,
           })
         );
+        await setDoc(doc(db, "users", user.uid), {
+          fullName: username,
+          email:  user.email,
+          location: null,
+          profileImage: null,
+          joinDate: new Date().toISOString(),
+        });
         setIsLoading(false);
         saveUID(user.uid);
         setEmail("");
         setUsername("");
         setConfirmPassword("");
         setPassword("")
+        console.log("Suceess!! user login..");
+      router.replace("/(app)/HomeScreen");
       
     } catch (error) {
       if (error.message == "Firebase: Error (auth/email-already-in-use).") {

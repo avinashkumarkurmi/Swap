@@ -81,6 +81,14 @@ export default function Login() {
           emailVerified: user.emailVerified,
         })
       );
+      // store in databse
+      // await setDoc(doc(db, "users", user.uid), {
+      //   fullName: user.displayName,
+      //   email:  user.email,
+      //   location: null,
+      //   profileImage: null,
+      //   joinDate: new Date().toISOString(),
+      // });
 
       saveUID(user.uid);
       setIsLoading(false);
@@ -155,7 +163,7 @@ export default function Login() {
               </TouchableOpacity>
             </View>
   
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.navigate("/SignUp")}>
               <Text
                 style={{
                   alignSelf: "flex-end",

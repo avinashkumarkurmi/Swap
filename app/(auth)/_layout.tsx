@@ -5,7 +5,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Slot } from "expo-router";
 import { StatusBar, StyleSheet } from "react-native";
 import "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -35,11 +35,12 @@ export default function AppLayout() {
             { backgroundColor: colorScheme === "dark" ? "#151718" : "#fff" },
           ]}
         >
-          <Stack screenOptions={{headerShown: false}}>
-            <Stack.Screen name="SignUp"  />
+          {/* <Stack screenOptions={{headerShown: false}} initialRouteName="SignUp">
             <Stack.Screen name="Login" />
+            <Stack.Screen name="SignUp"  />
             {/* <Stack.Screen name="+not-found" /> */}
-          </Stack>
+          {/* </Stack> */}
+          <Slot />
         </SafeAreaView>
         <StatusBar
           barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
