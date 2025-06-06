@@ -419,12 +419,12 @@ export default function SwapDetail() {
           style={{backgroundColor: theme.secondary}}
             onPress={async () => {
               const conversationId = await getOrCreateConversation(
-                uid,
+                uid, 
                 item.ownerId
               );
               const name = await getOtherUserFullName(uid, conversationId);
               try {
-                router.push(
+                router.navigate(
                   `/Convscreen/Chat?conversationId=${conversationId}&name=${name}`
                 );
               } catch (error) {

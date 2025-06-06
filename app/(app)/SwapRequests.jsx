@@ -1,250 +1,235 @@
-import { Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import {
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    query,
+    where,
+} from "firebase/firestore";
+import { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useColorScheme,
+    View,
+} from "react-native";
+import { Colors } from "../../constants/Colors";
+import { db } from "../../firebase";
+import { getUID } from "../../util/aysnStore";
 
 export default function SwapRequests() {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
+  const router = useRouter();
+
+  const [sentRequests, setSentRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSentRequests = async () => {
+      setLoading(true);
+      const uid = await getUID();
+  
+      const q = query(
+        collection(db, "swapRequests"),
+        where("fromUserId", "==", uid)
+      );
+      const querySnapshot = await getDocs(q);
+  
+      const requests = await Promise.all(
+        querySnapshot.docs.map(async (docSnap) => {
+          const request = { id: docSnap.id, ...docSnap.data() };
+  
+          // Get recipient user data
+          let recipient = null;
+          try {
+            const userDoc = await getDoc(doc(db, "users", request.toUserId));
+            if (userDoc.exists()) {
+              recipient = userDoc.data();
+            }
+          } catch (err) {
+            console.error("Error fetching user:", err);
+          }
+  
+          // Get target item data
+          let item = null;
+          try {
+            const itemDoc = await getDoc(doc(db, "items", request.toItemId));
+            if (itemDoc.exists()) {
+              item = itemDoc.data();
+            }
+          } catch (err) {
+            console.error("Error fetching item:", err);
+          }
+  
+          // Find conversation ID between fromUserId and toUserId
+          let conversationId = null;
+          try {
+            const convQuery = query(
+              collection(db, "conversations"),
+              where("participants", "array-contains", request.fromUserId)
+            );
+  
+            const convSnapshot = await getDocs(convQuery);
+  
+            for (const convDoc of convSnapshot.docs) {
+              const data = convDoc.data();
+              if (
+                data.participants.includes(request.toUserId) &&
+                data.participants.includes(request.fromUserId)
+              ) {
+                conversationId = convDoc.id;
+                break;
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching conversation:", err);
+          }
+  
+          return {
+            ...request,
+            toUserFullName: recipient?.fullName || "Unknown",
+            itemData: item,
+            conversationId,
+          };
+        })
+      );
+  
+      setSentRequests(requests);
+      setLoading(false);
+    };
+  
+    fetchSentRequests();
+  }, []);
+  
+
+  const renderItem = ({ item }) => {
+    const name = item.toUserFullName;
+    const conversationId = item.conversationId;
+  
     return (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><Text>Hello form SwapRequests</Text></View>
+      <View style={[styles.card, { backgroundColor: theme.card }]}>
+        <TouchableOpacity
+          style={{ flex: 8 }}
+          onPress={() =>
+            router.push({
+              pathname: "/HomeScreen/SwapDetail",
+              params: { item: JSON.stringify(item.itemData) },
+            })
+          }
+        >
+          <Text style={[styles.text, { color: theme.text }]}>To: {name}</Text>
+          <Text style={[styles.itemText, { color: theme.text }]}>
+            Item: {item.itemData?.title || "Unknown"}
+          </Text>
+          <Text
+            style={[styles.status, { color: getStatusColor(item.status) }]}
+          >
+            Status: {item.status}
+          </Text>
+        </TouchableOpacity>
+  
+        <Ionicons
+          onPress={() => {
+            if (!conversationId) return alert("No conversation found");
+            router.navigate(
+              `/Convscreen/Chat?conversationId=${conversationId}&name=${name}`
+            );
+          }}
+          style={{ flex: 1, justifyContent: "center", alignSelf: "center" }}
+          name="chatbubble-outline"
+          size={24}
+          color={theme.icon}
+        />
+      </View>
     );
+  };
+  
+
+  if (loading) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color="#007bff" />
+      </View>
+    );
+  }
+
+  if (sentRequests.length === 0) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <Text style={{ color: theme.text }}>
+          You haven't sent any swap requests yet.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    // <View  >
+
+    <FlatList
+      style={{ flex: 1, backgroundColor: theme.background }}
+      data={sentRequests}
+      keyExtractor={(item) => item.id}
+      renderItem={renderItem}
+      contentContainerStyle={[
+        styles.list,
+        { backgroundColor: theme.background },
+      ]}
+    />
+    //  </View>
+  );
 }
 
+function getStatusColor(status) {
+  switch (status) {
+    case "accepted":
+      return "#28a745";
+    case "rejected":
+      return "#dc3545";
+    case "fulfilled":
+      return "#6f42c1";
+    default:
+      return "#6c757d"; // pending or unknown
+  }
+}
 
-
-// import {
-//     collection,
-//     getDocs,
-//     limit,
-//     orderBy,
-//     query,
-//     startAfter,
-//   } from "firebase/firestore";
-//   import { useEffect, useState } from "react";
-//   import {
-//     ActivityIndicator,
-//     FlatList,
-//     Text,
-//     TouchableOpacity,
-//     View,
-//     useColorScheme,
-//   } from "react-native";
-//   import Icon from "react-native-vector-icons/Ionicons";
-//   import FilterModal from "../../components/FilterModal";
-//   import ItemCard from "../../components/ItemCard";
-//   import { Colors } from "../../constants/Colors";
-//   import { categories_, city } from "../../constants/varibale";
-//   import { db } from "../../firebase";
-  
-//   const PAGE_SIZE = 10;
-  
-//   export default function HomeScreen() {
-//     const [items, setItems] = useState([]);
-//     const [allData, setAllData] = useState([]);
-//     const [lastTimestamp, setLastTimestamp] = useState(null);
-//     const [loading, setLoading] = useState(false);
-//     const [loadingMore, setLoadingMore] = useState(false);
-//     const [hasMore, setHasMore] = useState(true);
-//     const [modalVisible, setModalVisible] = useState(false);
-//     const [filters, setFilters] = useState({ category: "", location: "" });
-//     const colorScheme = useColorScheme();
-//     const theme = Colors[colorScheme ?? "light"];
-  
-//     // const categories = ["Furniture", "Electronics", "Clothing"];
-//     // // const locations = ["Jaipur", "Delhi", "Mumbai"];
-  
-//     // const locations = [
-//     //   "Mumbai",
-//     //   "Delhi",
-//     //   "Bengaluru",
-//     //   "Hyderabad",
-//     //   "Chennai",
-//     //   "Kolkata",
-//     //   "Pune",
-//     //   "Ahmedabad",
-//     //   "Jaipur",
-//     //   "Lucknow",
-//     //   "Chandigarh",
-//     //   "Surat",
-//     //   "Indore",
-//     //   "Nagpur",
-//     //   "Bhopal",
-//     //   "Patna",
-//     //   "Thiruvananthapuram",
-//     //   "Kochi",
-//     //   "Visakhapatnam",
-//     //   "Vadodara",
-//     //   "Ranchi",
-//     //   "Raipur",
-//     //   "Guwahati",
-//     //   "Noida",
-//     //   "Gurugram",
-//     //   "other",
-//     // ];
-  
-  
-//     const applyFilters = () => {
-//       console.log("Filters Applied:", filters);
-    
-//       const { category, location } = filters;
-    
-//       const filteredItems = allData.filter(item => {
-//         const matchCategory = category ? item.category === category : true;
-//         const matchLocation = location ? item.location === location : true;
-//         return matchCategory && matchLocation;
-//       });
-    
-//       setItems(filteredItems);
-//       setModalVisible(false);
-//     };
-    
-  
-//     const fetchPaginatedItems = async (startAfterTimestamp = null) => {
-//       try {
-//         let q = query(
-//           collection(db, "items"),
-//           orderBy("timestamp", "desc"),
-//           ...(startAfterTimestamp ? [startAfter(startAfterTimestamp)] : []),
-//           limit(PAGE_SIZE)
-//         );
-  
-//         const snapshot = await getDocs(q);
-  
-//         const newItems = snapshot.docs.map((doc) => ({
-//           id: doc.id,
-//           ...doc.data(),
-//         }));
-  
-//         const newLastTimestamp =
-//           newItems.length > 0 ? newItems[newItems.length - 1].timestamp : null;
-  
-//         console.log("📦 Fetched", newItems.length, "items");
-//         console.log("🕒 New Last Timestamp:", newLastTimestamp?.toDate?.());
-  
-//         return { newItems, newLastTimestamp };
-//       } catch (error) {
-//         console.error("❌ Error fetching items:", error);
-//         return { newItems: [], newLastTimestamp: null };
-//       }
-//     };
-  
-//     const loadInitialItems = async () => {
-//       setLoading(true);
-//       const { newItems, newLastTimestamp } = await fetchPaginatedItems();
-//       setItems(newItems);
-//       setAllData(newItems);
-//       setLastTimestamp(newLastTimestamp);
-//       setHasMore(newItems.length === PAGE_SIZE);
-//       setLoading(false);
-//     };
-  
-//     const loadMoreItems = async () => {
-//       console.log("Loading more items");
-  
-//       if (loadingMore || !hasMore || !lastTimestamp) return;
-//       setLoadingMore(true);
-  
-//       const q = query(
-//         collection(db, "items"),
-//         orderBy("timestamp", "desc"),
-//         startAfter(lastTimestamp),
-//         limit(PAGE_SIZE)
-//       );
-  
-//       const snapshot = await getDocs(q);
-//       const newItems = snapshot.docs.map((doc) => ({
-//         id: doc.id,
-//         ...doc.data(),
-//       }));
-  
-//       const newLast =
-//         newItems.length > 0 ? newItems[newItems.length - 1].timestamp : null;
-  
-//       console.log("📦 Fetched", newItems.length, "items");
-//       console.log("🕒 New Last Timestamp:", newLast?.toDate?.());
-  
-//       setItems((prev) => [...prev, ...newItems]);
-//       setAllData((prev) => [...prev, ...newItems]);
-//       setLastTimestamp(newLast);
-//       setHasMore(newItems.length === PAGE_SIZE);
-//       setLoadingMore(false);
-//     };
-  
-//     const handleCardClick = (cardItem) => {
-//       console.log("card Click !", cardItem);
-//     };
-  
-//     useEffect(() => {
-//       loadInitialItems();
-//     }, []);
-  
-//     return (
-//       <View style={{ flex: 1, backgroundColor: theme.background }}>
-//         <FlatList
-//           data={items}
-//           keyExtractor={(item) => item.id}
-//           renderItem={({ item }) => (
-//             <ItemCard item={item} onPress={handleCardClick} />
-//           )}
-//           onEndReached={loadMoreItems}
-//           onEndReachedThreshold={0.5}
-//           showsVerticalScrollIndicator={false}
-//           ListHeaderComponent={
-//             <>
-//               <View
-//                 style={{
-//                   flexDirection: "row",
-//                   marginVertical: 5,
-//                   justifyContent: "space-between",
-//                   alignItems: "center",
-//                   paddingHorizontal: 20,
-//                 }}
-//               >
-//                 <Text
-//                   style={{ fontSize: 14, fontWeight: "300", color: theme.text }}
-//                 >
-//                   {(filters.category || filters.location) &&
-//                     `${filters.location} ${filters.category}`}
-//                 </Text>
-//                 <TouchableOpacity
-//                   onPress={() => setModalVisible(true)}
-//                   style={{ flexDirection: "row", alignItems: "center" }}
-//                 >
-//                   <Icon name="filter-outline" size={24} color={theme.icon} />
-//                   <Text
-//                     style={{
-//                       fontSize: 16,
-//                       fontWeight: "500",
-//                       marginLeft: 8,
-//                       color: theme.textSecondary,
-//                     }}
-//                   >
-//                     Filters
-//                   </Text>
-//                 </TouchableOpacity>
-//               </View>
-  
-//               <FilterModal
-//                 visible={modalVisible}
-//                 onClose={() => setModalVisible(false)}
-//                 filters={filters}
-//                 setFilters={setFilters}
-//                 categories={categories_}
-//                 locations={city}
-//                 onApply={applyFilters}
-//               />
-//             </>
-//           }
-//           ListFooterComponent={
-//             loadingMore ? <ActivityIndicator size="small" color="gray" /> : null
-//           }
-//           ListEmptyComponent={
-//             loading ? (
-//               <ActivityIndicator size="large" color="gray" />
-//             ) : (
-//               <View style={{ justifyContent:"center", alignContent: 'center', flex:1,marginTop: 300}}>
-//                 <Text style={{color:theme.text, textAlign: 'center' }}>No Swap found.</Text>
-//                 </View>
-//             )
-//           }
-//         />
-//       </View>
-//     );
-//   }
-  
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  list: {
+    padding: 16,
+  },
+  card: {
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 14,
+    flexDirection: "row",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  text: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  itemText: {
+    fontSize: 15,
+    marginBottom: 4,
+  },
+  status: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+});

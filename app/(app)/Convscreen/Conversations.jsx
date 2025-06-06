@@ -2,13 +2,16 @@
 import { router } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Colors } from "../../../constants/Colors";
 import { db } from '../../../firebase';
 import { getUID } from '../../../util/aysnStore';
 
 const Conversations = () => {
   const [userId, setUserId] = useState(null);
   const [conversations, setConversations] = useState([]);
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState({}); // 🟢 Store UID => fullname
 
@@ -60,16 +63,16 @@ const Conversations = () => {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007bff" />
+      <View style={[styles.center,{backgroundColor:theme.background}]}>
+        <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
   }
 
   if (conversations.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.noChatsText}>No conversations yet</Text>
+      <View style={[styles.center,{backgroundColor:theme.background}]}>
+        <Text style={[styles.noChatsText,{color:theme.text}]}>No conversations yet</Text>
       </View>
     );
   }
@@ -81,13 +84,13 @@ const Conversations = () => {
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card,{backgroundColor:theme.card}]}
         onPress={() =>
           router.navigate(`/Convscreen/Chat?conversationId=${item.id}&name=${otherUserName}`)
         }
       >
-        <Text style={styles.usernameText}>Chat with: {otherUserName}</Text>
-        <Text style={styles.lastMessageText}>
+        <Text style={[styles.usernameText,{color:theme.tint}]}>{otherUserName}</Text>
+        <Text style={[styles.lastMessageText,{color:theme.text}]}>
           {item.lastMessage || "No messages yet"}
         </Text>
       </TouchableOpacity>
@@ -96,6 +99,7 @@ const Conversations = () => {
 
   return (
     <FlatList
+    style={{flex:1, backgroundColor: theme.background}}
       data={conversations}
       keyExtractor={item => item.id}
       renderItem={renderItem}
