@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { store } from '../store/index';
 
 export default function RootLayout() {
-    console.log(store);
+    // console.log(store);
     
   return (
     <Provider store={store}>

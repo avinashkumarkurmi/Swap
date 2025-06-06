@@ -17,6 +17,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch } from "react-redux";
+import {
+  setUserData
+} from "../../store/features/user/userSlice";
 // import { useSelector } from 'react-redux';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -96,6 +99,16 @@ export default function SignUp() {
             emailVerified: user.emailVerified,
           })
         );
+        dispatch(
+          setUserData({
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            emailVerified: user.emailVerified,
+            uid: user.uid, // <-- Important for identifying the user in DB
+          })
+        );
+        
         await setDoc(doc(db, "users", user.uid), {
           fullName: username,
           email:  user.email,
@@ -120,7 +133,7 @@ export default function SignUp() {
       }
 
       setIsLoading(false);
-      console.error("Error creating user:",error.message);
+      console.log("Error creating user:",error.message);
       dispatch(loginFailure(error.message));
     }
   };

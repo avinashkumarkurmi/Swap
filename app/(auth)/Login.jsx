@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { collection, getDocs, or, query, where } from "firebase/firestore";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -20,59 +21,148 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch } from "react-redux";
 import Alert from "../../components/Alert";
 import { Colors } from "../../constants/Colors";
-import { auth } from "../../firebase";
+import { auth, db } from "../../firebase";
 import {
   loginFailure,
   loginStart,
   loginSuccess,
 } from "../../store/features/auth/authSlice";
+import {
+  setAvailableForSwap,
+  setItems,
+  setSwapReqItems,
+  setUserData
+} from "../../store/features/user/userSlice";
 import { saveUID } from "../../util/aysnStore";
 
 export default function Login() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const dispatch = useDispatch();
-  // const { user, loading, error } = useSelector(state => state.auth);
-  // console.log(user, loading, error);
-
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
   const [isAlert, setIsAlert] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [alertMsg, setAlertMsg] = useState({});
+
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const fetchSwapRequestsByUserId = async (userId) => {
+    if (!userId) throw new Error("User ID is required");
+
+    const swapRequestsRef = collection(db, "swapRequests");
+    const q = query(
+      swapRequestsRef,
+      or(where("fromUserId", "==", userId), where("toUserId", "==", userId))
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        fromItemId: data.fromItemId || null,
+        toItemId: data.toItemId || null,
+        fromUserId: data.fromUserId || null,
+        toUserId: data.toUserId || null,
+        status: data.status || "pending",
+        timestamp: data.timestamp?.toDate().toISOString() || null,
+      };
+    });
+  };
+
+  const getAvailableSwapItemsForUser = (userItems, swapRequests, userId) => {
+    if (!Array.isArray(userItems) || !Array.isArray(swapRequests)) return [];
+  
+    // 1. Track item IDs involved in accepted or fulfilled requests
+    const unavailableItemIds = new Set();
+  
+    for (const req of swapRequests) {
+      if (req.status === "accepted" || req.status === "fulfilled") {
+        unavailableItemIds.add(req.fromItemId);
+        unavailableItemIds.add(req.toItemId);
+      }
+    }
+  
+    // 2. Track multiple pending requests for same toItemId from this user
+    const pendingMap = new Map(); // toItemId -> fromItemId[]
+  
+    for (const req of swapRequests) {
+      if (req.status === "pending" && req.fromUserId === userId) {
+        if (!pendingMap.has(req.toItemId)) {
+          pendingMap.set(req.toItemId, []);
+        }
+        pendingMap.get(req.toItemId).push(req.fromItemId);
+      }
+    }
+  
+    // 3. Track duplicate fromItems in pending requests
+    const duplicateFromItemIds = new Set();
+  
+    for (const [toItemId, fromIds] of pendingMap.entries()) {
+      if (fromIds.length > 1) {
+        fromIds.slice(1).forEach(id => duplicateFromItemIds.add(id));
+      }
+    }
+  
+    // 4. Filter items: not accepted/fulfilled and not duplicate from pending
+    return userItems.filter(item =>
+      !unavailableItemIds.has(item.id) &&
+      !duplicateFromItemIds.has(item.id)
+    );
+  };
+  
+
+  const fetchSwapItemsByUserId = async (userId) => {
+    const swapItemsRef = collection(db, "items");
+    const q = query(swapItemsRef, where("ownerId", "==", userId));
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        timestamp: data.timestamp?.toDate().toISOString() || null,
+      };
+    });
+  };
 
   const handleLogin = async () => {
     if (!isValidEmail(email) || !email || !password) {
-      if (!email) {
-        setAlertMsg({ type: "error", msg: "Pls enter email id" });
-        setIsAlert(true);
-        setTimeout(() => setIsAlert(false), 2600);
-      } else if (!isValidEmail(email)) {
-        setAlertMsg({ type: "error", msg: "pls enter vaild email id" });
-        setIsAlert(true);
-        setTimeout(() => setIsAlert(false), 2600);
-      } else if (!password) {
-        setAlertMsg({ type: "error", msg: "pls enter password" });
-        setIsAlert(true);
-        setTimeout(() => setIsAlert(false), 2600);
-      }
+      const msg =
+        !email
+          ? "Pls enter email id"
+          : !isValidEmail(email)
+          ? "pls enter vaild email id"
+          : "pls enter password";
+      setAlertMsg({ type: "error", msg });
+      setIsAlert(true);
+      setTimeout(() => setIsAlert(false), 2600);
       return;
     }
+
     try {
       setIsLoading(true);
       dispatch(loginStart());
 
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      const [swapRequests, userItems] = await Promise.all([
+        fetchSwapRequestsByUserId(user.uid),
+        fetchSwapItemsByUserId(user.uid),
+      ]);
+
+      const availableItems = getAvailableSwapItemsForUser(userItems, swapRequests, user.uid);
+      // const list = await fetchSwapItemsByUserId(userId);
+
+      dispatch(setAvailableForSwap(availableItems));
+      dispatch(setSwapReqItems(swapRequests));
+      dispatch(setItems(userItems));
       dispatch(
         loginSuccess({
           email: user.email,
@@ -81,34 +171,30 @@ export default function Login() {
           emailVerified: user.emailVerified,
         })
       );
-      // store in databse
-      // await setDoc(doc(db, "users", user.uid), {
-      //   fullName: user.displayName,
-      //   email:  user.email,
-      //   location: null,
-      //   profileImage: null,
-      //   joinDate: new Date().toISOString(),
-      // });
+      dispatch(
+        setUserData({
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          emailVerified: user.emailVerified,
+          uid: user.uid,
+        })
+      );
 
       saveUID(user.uid);
       setIsLoading(false);
       setEmail("");
       setPassword("");
-      console.log("Suceess!! user login..");
       router.replace("/(app)/HomeScreen");
     } catch (error) {
-      if (error.message == "Firebase: Error (auth/invalid-credential).") {
-        setAlertMsg({type:"error",msg:"Invalid credential"});
-        setIsAlert(true);
-        setTimeout(()=> setIsAlert(false), 3000)
-      }
-      
-
       setIsLoading(false);
-      console.error("Error creating user:",error.message);
+      setAlertMsg({ type: "error", msg: "Invalid credential" });
+      setIsAlert(true);
+      setTimeout(() => setIsAlert(false), 3000);
       dispatch(loginFailure(error.message));
     }
   };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.alert}>

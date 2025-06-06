@@ -1,6 +1,12 @@
 // import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from "expo-image-picker";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -18,13 +24,16 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useDispatch } from "react-redux";
 import Alert from "../../components/Alert";
 import CustomPicker from "../../components/CustomPicker";
 import { Colors } from "../../constants/Colors";
 import { categories_, city } from "../../constants/varibale";
 import { db } from "../../firebase";
+import { addItem } from "../../store/features/user/userSlice";
 import { getUID } from "../../util/aysnStore";
 import { uploadImageUrisToCloudinary } from "../../util/backend";
+// import {  } from "firebase/firestore";
 
 // const categories_ = [
 //   "Books",
@@ -80,6 +89,7 @@ import { uploadImageUrisToCloudinary } from "../../util/backend";
 export default function AddItems() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const dispatch = useDispatch();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -91,11 +101,8 @@ export default function AddItems() {
   const [isUploadingImage, setIsUploadingImages] = useState(false);
   const [category, setCategory] = useState("");
   const [categoryCity, setCategoryCity] = useState("");
+
   //   const categories = ["Books", "Electronics", "Clothes", "Furniture"];
-
-  console.log(category, categoryCity);
-
-
 
   const pickImage = async (index) => {
     try {
@@ -122,8 +129,28 @@ export default function AddItems() {
     }
   };
 
+  const getUserById = async (userId) => {
+    if (!userId) return null;
+
+    try {
+      const userDocRef = doc(db, "users", userId);
+      const userSnap = await getDoc(userDocRef);
+
+      if (userSnap.exists()) {
+        return { id: userSnap.id, ...userSnap.data() };
+      } else {
+        console.warn(`User with ID ${userId} not found.`);
+        return null;
+      }
+    } catch (error) {
+      console.error("Error fetching user by ID:", error.message);
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     const filteredImages = imageUris.filter(Boolean);
+
     if (!title || !description) {
       setAlertMsg({ type: "error", msg: "Please fill title and description" });
       setIsAlert(true);
@@ -136,6 +163,23 @@ export default function AddItems() {
       setTimeout(() => setIsAlert(false), 2600);
       //   Alert.alert("At least 2 images are required");
       return;
+    }
+    const userId = await getUID();
+    if (category == "" && categoryCity == "") {
+      setAlertMsg({ type: "warning", msg: "Pls select Category and city" });
+      setIsAlert(true);
+      setTimeout(() => setIsAlert(false), 2600);
+
+      return;
+    }
+    if (userId) {
+      const user = await getUserById(userId);
+      if (user.location == null) {
+        setAlertMsg({ type: "warning", msg: "Pls add location to user profile" });
+        setIsAlert(true);
+        setTimeout(() => setIsAlert(false), 3200);
+        return;
+      }
     }
 
     setIsUploadingImages(true);
@@ -157,6 +201,18 @@ export default function AddItems() {
           location: categoryCity,
         });
 
+
+        dispatch(addItem({
+          ownerId: uid,
+          title,
+          description,
+          images: urls,
+          isAvailable: true,
+          category,
+          location: categoryCity,
+          timestamp: Date.now(), // ✅ Use plain timestamp OR omit it entirely here
+        }));
+        
         // Alert.alert("Item added successfully");
         setAlertMsg({ type: "success", msg: "Item added successfully" });
         setIsAlert(true);

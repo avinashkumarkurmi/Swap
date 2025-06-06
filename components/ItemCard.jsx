@@ -10,6 +10,7 @@ export default function ItemCard({ item, onPress }) {
 
   const imageUrl = item?.images?.length > 0 ? item.images[0] : null;
 
+  // console.log(item);
   
 
   return (

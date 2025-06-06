@@ -48,3 +48,5 @@ export const categories_ = [
     "Gurugram",
     "other",
   ];
+
+  export const ip = "192.168.180.24"

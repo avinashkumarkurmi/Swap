@@ -2,13 +2,13 @@
 import { Picker } from "@react-native-picker/picker";
 import React from "react";
 import {
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableWithoutFeedback,
-    useColorScheme,
-    View,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableWithoutFeedback,
+  useColorScheme,
+  View,
 } from "react-native";
 import { Colors } from "../constants/Colors";
 
@@ -38,6 +38,7 @@ export default function FilterModal({
           Category
         </Text>
         <Picker
+        dropdownIconColor={theme.text}
           selectedValue={filters.category}
           style={{ color: theme.text }}
           onValueChange={(value) => setFilters((f) => ({ ...f, category: value }))}
@@ -53,6 +54,7 @@ export default function FilterModal({
         </Text>
         <Picker
           selectedValue={filters.location}
+          dropdownIconColor={theme.text}
           style={{ color: theme.text }}
           onValueChange={(value) => setFilters((f) => ({ ...f, location: value }))}
         >
